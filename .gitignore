@@ -1,0 +1,15 @@
+node_modules
+coverage
+docs
+.DS_Store
+dist
+.vscode
+service-account.json
+statictis.md
+/people
+/configuration
+/diagnostics
+/medical
+/medicalStudy
+/finder
+env.js
