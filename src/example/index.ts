@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { TFileContent, GCPBucket } from '../src/gcp';
+import { TFileContent, GCPBucket } from '../gcp';
 import firebaseApp from './firebase';
 
 // Initialize Express app
@@ -44,7 +44,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     };
 
     // Upsert the file to GCP
-    const result = await gcpBucket.upsertFiles(fileContent);
+    const result = await gcpBucket.upsertFiles(fileContent, console.log);
     res.status(200).send(result);
   } catch (error) {
     console.error(error);

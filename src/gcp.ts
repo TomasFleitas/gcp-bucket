@@ -13,6 +13,7 @@ export type TConstructor = {
   bucketName: string;
   firebaseApp: Admin.app.App;
   encryptKey?: string;
+  chunkSize?: number;
 };
 
 export type TResizeOpts = TResizeOptions & {
@@ -38,14 +39,20 @@ export type TUpserFile = {
   fileContentType?: string;
 };
 
-export type TProgressCallback = (fildePath: string, percentage: number) => void;
+export type TProgressCallback = (filePath: string, percentage: number) => void;
 
 export class GCPBucket {
   private STORAGE: any;
   private BUCKET!: Bucket;
   private ENCRYPT_KEY?: string;
+  private CHUNK_SIZE = 1024;
 
-  constructor({ bucketName, firebaseApp, encryptKey }: TConstructor) {
+  constructor({
+    bucketName,
+    firebaseApp,
+    encryptKey,
+    chunkSize,
+  }: TConstructor) {
     if (!bucketName) {
       throw new Error('bucketName is required');
     }
@@ -54,6 +61,7 @@ export class GCPBucket {
     }
     this.STORAGE = firebaseApp.storage();
     this.ENCRYPT_KEY = encryptKey;
+    this.CHUNK_SIZE = chunkSize ?? this.CHUNK_SIZE;
     this._initFileStorage(bucketName);
   }
 
@@ -145,6 +153,7 @@ export class GCPBucket {
 
       const writeStream = file.createWriteStream({
         resumable: false,
+
         timeout: 5000,
         metadata: {
           ...metadata,
@@ -152,12 +161,32 @@ export class GCPBucket {
       });
 
       let uploadedBytes = 0;
+      let currentChunk = 0;
+      const chunkSize = this.CHUNK_SIZE;
+      const totalChunks = Math.ceil(totalBytes / chunkSize);
 
-      writeStream.on('data', (chunk) => {
-        uploadedBytes += chunk.length;
-        const progress = (uploadedBytes / totalBytes) * 100;
-        progressCallback?.(filePath, progress);
-      });
+      const uploadChunk = () => {
+        const start = currentChunk * chunkSize;
+        const end = Math.min(start + chunkSize, totalBytes);
+        const chunk = fileData.subarray(start, end);
+
+        writeStream.write(chunk, (err) => {
+          if (err) {
+            reject('File upload failed: ' + err);
+            return;
+          }
+          uploadedBytes += chunk.length;
+          const progress = (uploadedBytes / totalBytes) * 100;
+          progressCallback?.(filePath, progress);
+          currentChunk++;
+
+          if (currentChunk < totalChunks) {
+            uploadChunk();
+          } else {
+            writeStream.end();
+          }
+        });
+      };
 
       writeStream.on('finish', async () => {
         const type = await (
@@ -177,7 +206,7 @@ export class GCPBucket {
         reject('File upload failed: ' + err);
       });
 
-      writeStream.end(fileData);
+      uploadChunk();
     });
   }
 

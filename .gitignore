@@ -1,7 +1,8 @@
 node_modules
-dist/lib
 .nyc_output
 coverage
 .idea/
-
+/lib/*.ts
+/lib/example
+/lib/*.js
 service-account.json
