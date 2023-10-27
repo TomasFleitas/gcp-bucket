@@ -1,6 +1,7 @@
 import express from 'express';
 import multer from 'multer';
-import GCPBucket, { TFileContent } from '.';
+import { TFileContent, GCPBucket } from '../src/gcp';
+import firebaseApp from './firebase';
 
 // Initialize Express app
 const app = express();
@@ -10,10 +11,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // Initialize your GCPBucket instance
 const gcpBucket = new GCPBucket({
-  bucketName: 'your-bucket-name',
-  firebaseApp: {
-    /* your firebase app config */
-  } as any,
+  bucketName: 'fleeting-dev.appspot.com',
+  firebaseApp,
 });
 
 app.post('/upload', upload.single('file'), async (req, res) => {
@@ -32,6 +31,16 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       folderName,
       fileName,
       fileData: file.buffer,
+      fileMetadata: { random: 'hola' },
+      resizeOptions: [
+        {
+          height: 400,
+          width: 400,
+          fileResizePrefix: 'medium-',
+          fit: 'inside',
+        },
+        { height: 200, width: 200, fileResizePrefix: 'small-', fit: 'inside' },
+      ],
     };
 
     // Upsert the file to GCP
@@ -43,4 +52,6 @@ app.post('/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-export default app;
+app.listen(3000, () => {
+  console.log('Server is running on http://localhost:3000');
+});
