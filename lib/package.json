@@ -1,6 +1,6 @@
 {
   "name": "gcp-bucket",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A versatile library engineered to seamlessly manage file updates and perform image resizing tasks utilizing Google Cloud Platform's robust Bucket Storage infrastructure.",
   "main": "index.js",
   "author": "Tomás Fleitas",
