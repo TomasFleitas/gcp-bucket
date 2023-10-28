@@ -1,11 +1,11 @@
 {
   "name": "gcp-bucket",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "A versatile library engineered to seamlessly manage file updates and perform image resizing tasks utilizing Google Cloud Platform's robust Bucket Storage infrastructure.",
   "main": "index.js",
   "author": "Tomás Fleitas",
   "license": "MIT",
-  "homepage": "https://github.com/TomasFleitas/GCPBucket.git",
+  "homepage": "https://github.com/TomasFleitas/gcp-bucket.git",
   "keywords": [
     "Google Cloud Plaform Bucket",
     "Firebase Bucket",
@@ -16,7 +16,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/TomasFleitas/GCPBucket.git"
+    "url": "https://github.com/TomasFleitas/gcp-bucket.git"
   },
   "publishConfig": {
     "access": "public"

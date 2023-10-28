@@ -65,45 +65,144 @@ export class GCPBucket {
     this._initFileStorage(bucketName);
   }
 
+  public async getImageSizeByFactor(
+    data: TFileContent['fileData'],
+    scaleFactor: number,
+    imgFit?: keyof sharp.FitEnum,
+  ) {
+    if (!scaleFactor) {
+      throw new Error('The scaleFactor is not provided.');
+    }
+
+    const buffer = await this.getBufferFromData(data);
+
+    if (!(await this.isImage(buffer))) {
+      throw new Error('The file is not a image.');
+    }
+
+    const { width, height } = await sharp(buffer).metadata();
+
+    const newWidth = Math.floor(width * scaleFactor);
+    const newHeight = Math.floor(height * scaleFactor);
+
+    return {
+      width: newWidth,
+      height: newHeight,
+      buffer: await this._resizeImage(buffer, {
+        height: newHeight,
+        width: newWidth,
+        fit: imgFit,
+      }),
+    };
+  }
+
+  public async isImage(data: TFileContent['fileData']) {
+    const type = await (
+      await import('file-type')
+    ).fileTypeFromBuffer(await this.getBufferFromData(data));
+    return type && type.mime.startsWith('image/');
+  }
+
+  public async getImageMetadata(
+    data: TFileContent['fileData'],
+  ): Promise<sharp.Metadata> {
+    const buffer = await this.getBufferFromData(data);
+    if (!(await this.isImage(buffer))) {
+      throw new Error('The file is not a image.');
+    }
+    return await sharp(buffer).metadata();
+  }
+
   /**
-   *  Initialize the bucket
+   * @typedef {Object} TUpserFile
+   * @property {string} fileUrl - The URL of the upserted file.
+   * @property {string} filePath - The path of the upserted file.
+   * @property {string} fileName - The name of the upserted file.
+   * @property {string} [fileType] - The type of the upserted file.
+   * @property {string} [fileContentType] - The content type of the upserted file.
+   */
+
+  /**
+   * Upserts files to a specified location. If an array of files is provided, it will upsert them concurrently.
+   *
+   * @param {TFile} files - The file or array of files to be upserted.
+   * @param {Object} [metadata={}] - Optional metadata to be associated with the files.
+   * @returns {Promise<TUpserFile | TUpserFile[]>} - A promise that resolves to the upserted file(s) information.
+   */
+  public async upsertFiles(
+    files: TFile,
+    progressCallback?: TProgressCallback,
+  ): Promise<TUpserFile | TUpserFile[] | undefined> {
+    if (files && Array.isArray(files)) {
+      const auxFiles = (
+        await Promise.all(
+          files.map(async (file) => await this.getFilesToUpdate(file)),
+        )
+      ).flat();
+      return await Promise.all(
+        auxFiles?.map((file) =>
+          this._upsertFile(
+            file.folderName,
+            file.fileName,
+            file.fileData as Buffer,
+            file.fileMetadata,
+            progressCallback,
+          ),
+        ),
+      );
+    }
+    if (files && !Array.isArray(files))
+      return await Promise.all(
+        (
+          await this.getFilesToUpdate(files)
+        )?.map((file) =>
+          this._upsertFile(
+            file.folderName,
+            file.fileName,
+            file.fileData as Buffer,
+            file.fileMetadata,
+            progressCallback,
+          ),
+        ),
+      );
+  }
+
+  /**
+   * Delete a file from the bucket
+   *
+   * @param {string} filePath
    * @returns
    */
-  private async _initFileStorage(bucketName: string) {
-    this.BUCKET = this.STORAGE.bucket(bucketName);
-    if (!(await this.BUCKET.exists())) {
-      throw new Error('Storage bucket does not exist');
-    }
+  public async deleteFile(filePath: string) {
+    const file = this.BUCKET.file(filePath);
+    return await file.delete();
   }
 
-  private async _resizeImage(
-    data: Buffer,
-    options: TResizeOptions,
-  ): Promise<Buffer> {
-    return await sharp(data).resize(options).toBuffer();
-  }
-
-  private async getBufferFromData(
-    data: Blob | string | Buffer,
-  ): Promise<Buffer> {
-    if (data instanceof Buffer) return data;
-
-    if (data instanceof Blob) {
-      return await new Promise((resolve, reject) => {
-        blobToBuffer(data as Blob, (err, buffer) => {
-          if (err) return reject('Failed to convert blob to buffer: ' + err);
-          resolve(buffer);
-        });
+  /**
+   * Download a file from the bucket
+   *
+   * @param {string} fielPath
+   * @param {object} metadata
+   * @returns
+   */
+  public async download(fielPath: string, metadata: object = {}) {
+    const file = this.BUCKET.file(fielPath);
+    if (this.ENCRYPT_KEY) file.setEncryptionKey(Buffer.from(this.ENCRYPT_KEY));
+    if (!!Object.keys(metadata).length) {
+      const [{ metadata: oldMetada }] = await file.getMetadata();
+      await file.setMetadata({
+        metadata: {
+          ...oldMetada,
+          ...metadata,
+        },
       });
     }
 
-    return Buffer.from(data, 'base64');
+    return await file.download();
   }
 
-  async isImage(buffer: Buffer) {
-    const type = await (await import('file-type')).fileTypeFromBuffer(buffer);
-    return type && type.mime.startsWith('image/');
-  }
+
+  /* ==================== PRIVATE METHODS  ==================== */
 
   /**
    * Update or create a new file
@@ -210,94 +309,6 @@ export class GCPBucket {
     });
   }
 
-  /**
-   * Delete a file from the bucket
-   *
-   * @param {string} filePath
-   * @returns
-   */
-  public async deleteFile(filePath: string) {
-    const file = this.BUCKET.file(filePath);
-    return await file.delete();
-  }
-
-  /**
-   * Download a file from the bucket
-   *
-   * @param {string} fielPath
-   * @param {object} metadata
-   * @returns
-   */
-  public async download(fielPath: string, metadata = {}) {
-    const file = this.BUCKET.file(fielPath);
-    if (this.ENCRYPT_KEY) file.setEncryptionKey(Buffer.from(this.ENCRYPT_KEY));
-    if (!!Object.keys(metadata).length) {
-      const [{ metadata: oldMetada }] = await file.getMetadata();
-      await file.setMetadata({
-        metadata: {
-          ...oldMetada,
-          ...metadata,
-        },
-      });
-    }
-
-    return await file.download();
-  }
-
-  /**
-   * @typedef {Object} TUpserFile
-   * @property {string} fileUrl - The URL of the upserted file.
-   * @property {string} filePath - The path of the upserted file.
-   * @property {string} fileName - The name of the upserted file.
-   * @property {string} [fileType] - The type of the upserted file.
-   * @property {string} [fileContentType] - The content type of the upserted file.
-   */
-
-  /**
-   * Upserts files to a specified location. If an array of files is provided, it will upsert them concurrently.
-   *
-   * @param {TFile} files - The file or array of files to be upserted.
-   * @param {Object} [metadata={}] - Optional metadata to be associated with the files.
-   * @returns {Promise<TUpserFile | TUpserFile[]>} - A promise that resolves to the upserted file(s) information.
-   */
-  public async upsertFiles(
-    files: TFile,
-    progressCallback?: TProgressCallback,
-  ): Promise<TUpserFile | TUpserFile[] | undefined> {
-    if (files && Array.isArray(files)) {
-      const auxFiles = (
-        await Promise.all(
-          files.map(async (file) => await this.getFilesToUpdate(file)),
-        )
-      ).flat();
-      return await Promise.all(
-        auxFiles?.map((file) =>
-          this._upsertFile(
-            file.folderName,
-            file.fileName,
-            file.fileData as Buffer,
-            file.fileMetadata,
-            progressCallback,
-          ),
-        ),
-      );
-    }
-    if (files && !Array.isArray(files))
-      return await Promise.all(
-        (
-          await this.getFilesToUpdate(files)
-        )?.map((file) =>
-          this._upsertFile(
-            file.folderName,
-            file.fileName,
-            file.fileData as Buffer,
-            file.fileMetadata,
-            progressCallback,
-          ),
-        ),
-      );
-  }
-
   private async getFilesToUpdate(file: TFileContent) {
     const filesToUpsert: (TFileContent & {})[] = [];
     const buffer = await this.getBufferFromData(file.fileData);
@@ -333,5 +344,52 @@ export class GCPBucket {
     }
 
     return filesToUpsert;
+  }
+
+  /**
+   *  Initialize the bucket
+   * @returns
+   */
+  private async _initFileStorage(bucketName: string) {
+    this.BUCKET = this.STORAGE.bucket(bucketName);
+    if (!(await this.BUCKET.exists())) {
+      throw new Error('Storage bucket does not exist');
+    }
+  }
+
+  private async _resizeImage(
+    data: Buffer,
+    { fit = 'contain', ...rest }: TResizeOptions,
+  ): Promise<Buffer> {
+    return await sharp(data)
+      .resize({ fit, ...rest })
+      .toBuffer();
+  }
+
+  private async getBufferFromData(
+    data: Blob | string | Buffer,
+  ): Promise<Buffer> {
+    if (
+      !(data instanceof Buffer) &&
+      !(data instanceof Blob) &&
+      !(typeof data === 'string')
+    ) {
+      throw new Error(
+        'Invalid image format. Provide a Buffer, Base64, or Blob.',
+      );
+    }
+
+    if (data instanceof Buffer) return data;
+
+    if (data instanceof Blob) {
+      return await new Promise((resolve, reject) => {
+        blobToBuffer(data as Blob, (err, buffer) => {
+          if (err) return reject('Failed to convert blob to buffer: ' + err);
+          resolve(buffer);
+        });
+      });
+    }
+
+    return Buffer.from(data, 'base64');
   }
 }

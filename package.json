@@ -21,7 +21,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/TomasFleitas/GCPBucket.git"
+    "url": "https://github.com/TomasFleitas/gcp-bucket.git"
   },
   "files": [
     "lib",

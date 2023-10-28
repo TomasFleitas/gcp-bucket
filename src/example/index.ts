@@ -13,6 +13,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 const gcpBucket = new GCPBucket({
   bucketName: 'fleeting-dev.appspot.com',
   firebaseApp,
+  chunkSize: 1024, // Optional chuck size to upload
+  encryptKey: "key" // Optional An AES-256 encryption key.
 });
 
 app.post('/upload', upload.single('file'), async (req, res) => {
@@ -27,21 +29,28 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     const fileName = file.originalname;
 
     // Prepare file content
-    const fileContent: TFileContent = {
-      folderName,
-      fileName,
-      fileData: file.buffer,
-      fileMetadata: { random: 'hola' },
-      resizeOptions: [
-        {
-          height: 400,
-          width: 400,
-          fileResizePrefix: 'medium-',
-          fit: 'inside',
-        },
-        { height: 200, width: 200, fileResizePrefix: 'small-', fit: 'inside' },
-      ],
-    };
+    const fileContent: TFileContent[] = [
+      {
+        folderName,
+        fileName,
+        fileData: file.buffer,
+        fileMetadata: { random: 'hola' },
+        resizeOptions: [
+          {
+            height: 400,
+            width: 400,
+            fileResizePrefix: 'medium-',
+            fit: 'inside',
+          },
+          {
+            height: 200,
+            width: 200,
+            fileResizePrefix: 'small-',
+            fit: 'inside',
+          },
+        ],
+      },
+    ];
 
     // Upsert the file to GCP
     const result = await gcpBucket.upsertFiles(fileContent, console.log);
