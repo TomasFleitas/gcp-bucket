@@ -65,6 +65,19 @@ export class GCPBucket {
     this._initFileStorage(bucketName);
   }
 
+  public async getImage(
+    data: TFileContent['fileData'],
+    newSize: TResizeOptions,
+  ) {
+    const buffer = await this.getBufferFromData(data);
+
+    if (!(await this.isImage(buffer))) {
+      throw new Error('The file is not a image.');
+    }
+
+    return await this._resizeImage(buffer, newSize);
+  }
+
   public async getImageSizeByFactor(
     data: TFileContent['fileData'],
     scaleFactor: number,
@@ -200,7 +213,6 @@ export class GCPBucket {
 
     return await file.download();
   }
-
 
   /* ==================== PRIVATE METHODS  ==================== */
 

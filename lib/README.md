@@ -78,20 +78,23 @@ const result = await gcpBucket.upsertFiles(fileContent, callbackProcessPercentag
 callbackProcessPercentage is a callback function that gets invoked with the file path and the percentage of the resize process.
 
 ### Method: `deleteFile`
+
 Deleting a File
 
 #### Parameters:
+
 - `filePath` (`string`) : The file path in the bucket.
 
 ```javascript
 await gcpBucket.deleteFile(filePath);
 ```
 
-
 ### Method: `download`
+
 Downloading a File
 
 #### Parameters:
+
 - `filePath` (`string`) : The file path in the bucket.
 
 ```javascript
@@ -99,9 +102,11 @@ await gcpBucket.download(filePath);
 ```
 
 ### Method: `isImage`
+
 Checking if a File is an Image
 
 #### Parameters:
+
 - `fileData` (`TFileContent['fileData']`) : The image data which can be a Base64 string, Blob, or Buffer.
 
 ```javascript
@@ -113,12 +118,15 @@ await gcpBucket.isImage(fileData);
 This method resizes an image by a specified scale factor and returns the new dimensions along with a buffer of the resized image.
 
 #### Parameters:
+
 - `data` (`TFileContent['fileData']`): The image data which can be a Base64 string, Blob, or Buffer.
 - `scaleFactor` (`number`): The scaling factor to resize the image. For example, a scaleFactor of 0.5 will reduce the image dimensions by 50%.
 - `imgFit` (`keyof sharp.FitEnum` | optional): The fit strategy for sharp to follow when resizing the image. Default is undefined.
 
 #### Returns:
+
 An object containing:
+
 - `width` (`number`): The new width of the resized image.
 - `height` (`number`): The new height of the resized image.
 - `buffer` (`Buffer`): A buffer of the resized image.
@@ -134,13 +142,38 @@ const result = await gcpBucket.getImageSizeByFactor(fileData, 0.5, 'inside');
 This method retrieves and returns metadata of the specified image.
 
 #### Parameters:
+
 - `data` (`TFileContent['fileData']`): The image data which can be a Base64 string, Blob, or Buffer.
 
 #### Returns:
+
 A Promise resolving to a `sharp.Metadata` object containing metadata information of the image.
 
 #### Usage:
 
 ```javascript
 const metadata = await gcpBucket.getImageMetadata(fileData);
+```
+
+### Method: `getImage`
+
+This method return a new image with other size.
+
+#### Parameters:
+
+- `data` (`TFileContent['fileData']`): The image data which can be a Base64 string, Blob, or Buffer.
+- `newSize` (`TResizeOptions`): The new image dimensions.
+
+#### Returns:
+
+- `buffer` (`Buffer`): A buffer of the resized image.
+
+#### Usage:
+
+```javascript
+const metadata = await gcpBucket.getImage(fileData, {
+  height: 100,
+  width: 100,
+  fit: 'cover',
+});
 ```
