@@ -1,12 +1,12 @@
 import * as admin from 'firebase-admin';
+import { FIREBASE_PROJECT } from './constants';
 
 export default (() => {
-  const medicalProject = 'fleeting-dev';
   const { databaseURL, cert, storageBucket, projectId } = {
-    cert: './service-account.json',
-    databaseURL: `${medicalProject}.firebaseapp.com`,
-    projectId: `${medicalProject}`,
-    storageBucket: `${medicalProject}.appspot.com`,
+    cert: require('./service-account.json'),
+    databaseURL: `${FIREBASE_PROJECT}.firebaseapp.com`,
+    projectId: `${FIREBASE_PROJECT}`,
+    storageBucket: `${FIREBASE_PROJECT}.appspot.com`,
   };
 
   const credentials = admin.credential.cert(cert);
@@ -17,5 +17,5 @@ export default (() => {
     projectId,
     credential: credentials ?? admin.credential.applicationDefault(),
   };
-  return admin.initializeApp(appConfig);
+  return admin.initializeApp(appConfig, FIREBASE_PROJECT);
 })();

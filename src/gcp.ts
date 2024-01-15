@@ -1,12 +1,27 @@
 import * as Admin from 'firebase-admin';
 import { Bucket } from '@google-cloud/storage';
 import blobToBuffer from 'blob-to-buffer';
-import sharp from 'sharp';
+import sharp, { ResizeOptions } from 'sharp';
 
-export type TResizeOptions = {
-  width: number;
-  height: number;
-  fit?: keyof sharp.FitEnum;
+type FormatGenericType<F, O> = { extension: F; options?: O };
+
+type FormatType =
+  | FormatGenericType<'webp', sharp.WebpOptions>
+  | FormatGenericType<'png', sharp.PngOptions>
+  | FormatGenericType<'avif', sharp.AvifOptions>
+  | FormatGenericType<'heif', sharp.HeifOptions>
+  | FormatGenericType<'jxl', sharp.JxlOptions>
+  | FormatGenericType<'jp2', sharp.Jp2Options>
+  | FormatGenericType<'raw', sharp.OutputOptions>
+  | FormatGenericType<'tif', sharp.TiffOptions>
+  | FormatGenericType<'tiff', sharp.TiffOptions>
+  | FormatGenericType<'svg', sharp.OutputOptions>
+  | FormatGenericType<'gif', sharp.GifOptions>
+  | FormatGenericType<'jpg', sharp.JpegOptions>
+  | FormatGenericType<'jpeg', sharp.JpegOptions>;
+
+export type TResizeOptions = Pick<ResizeOptions, 'height' | 'width' | 'fit'> & {
+  format?: FormatType;
 };
 
 export type TConstructor = {
@@ -67,7 +82,7 @@ export class GCPBucket {
 
   public async getImage(
     data: TFileContent['fileData'],
-    newSize: TResizeOptions,
+    newSize: TResizeOptions
   ) {
     const buffer = await this.getBufferFromData(data);
 
@@ -81,7 +96,7 @@ export class GCPBucket {
   public async getImageSizeByFactor(
     data: TFileContent['fileData'],
     scaleFactor: number,
-    imgFit?: keyof sharp.FitEnum,
+    imgFit?: keyof sharp.FitEnum
   ) {
     if (!scaleFactor) {
       throw new Error('The scaleFactor is not provided.');
@@ -117,7 +132,7 @@ export class GCPBucket {
   }
 
   public async getImageMetadata(
-    data: TFileContent['fileData'],
+    data: TFileContent['fileData']
   ): Promise<sharp.Metadata> {
     const buffer = await this.getBufferFromData(data);
     if (!(await this.isImage(buffer))) {
@@ -144,12 +159,12 @@ export class GCPBucket {
    */
   public async upsertFiles(
     files: TFile,
-    progressCallback?: TProgressCallback,
+    progressCallback?: TProgressCallback
   ): Promise<TUpserFile | TUpserFile[] | undefined> {
     if (files && Array.isArray(files)) {
       const auxFiles = (
         await Promise.all(
-          files.map(async (file) => await this.getFilesToUpdate(file)),
+          files.map(async (file) => await this.getFilesToUpdate(file))
         )
       ).flat();
       return await Promise.all(
@@ -159,9 +174,9 @@ export class GCPBucket {
             file.fileName,
             file.fileData as Buffer,
             file.fileMetadata,
-            progressCallback,
-          ),
-        ),
+            progressCallback
+          )
+        )
       );
     }
     if (files && !Array.isArray(files))
@@ -174,9 +189,9 @@ export class GCPBucket {
             file.fileName,
             file.fileData as Buffer,
             file.fileMetadata,
-            progressCallback,
-          ),
-        ),
+            progressCallback
+          )
+        )
       );
   }
 
@@ -237,7 +252,7 @@ export class GCPBucket {
     fileName: string,
     fileData: Buffer,
     metadata?: Object,
-    progressCallback?: (filePath: string, percentage: number) => void,
+    progressCallback?: (filePath: string, percentage: number) => void
   ): Promise<TUpserFile> {
     return await new Promise(async (resolve, reject) => {
       const totalBytes = fileData.length;
@@ -247,13 +262,13 @@ export class GCPBucket {
 
       if (!folderPath.match(/[A-Z]|[a-z]|[0-9]|\-/g)) {
         return reject(
-          `Failed to upsert file, folderPath=[${folderPath}] contains invalid characters`,
+          `Failed to upsert file, folderPath=[${folderPath}] contains invalid characters`
         );
       }
 
       if (!fileName.match(/[A-Z]|[a-z]|[0-9]|\-/g)) {
         return reject(
-          `Failed to upsert file, fileName=[${fileName}] contains invalid characters`,
+          `Failed to upsert file, fileName=[${fileName}] contains invalid characters`
         );
       }
 
@@ -321,6 +336,16 @@ export class GCPBucket {
     });
   }
 
+  private _hasExtension(filename) {
+    const regex = /\.[^\.]+$/;
+    return regex.test(filename);
+  }
+
+  private _replaceExtension(filename, newExtension) {
+    const regex = /\.[^\.]+$/;
+    return filename.replace(regex, `.${newExtension}`);
+  }
+
   private async getFilesToUpdate(file: TFileContent) {
     const filesToUpsert: (TFileContent & {})[] = [];
     const buffer = await this.getBufferFromData(file.fileData);
@@ -335,9 +360,21 @@ export class GCPBucket {
         fileData: buffer,
       });
       for (const resizeOption of file.resizeOptions) {
-        const fileName =
+        const format = resizeOption?.format?.extension;
+        let fileName =
           resizeOption.fileResizePrefix +
           (resizeOption.fileName || file.fileName);
+
+        if (format) {
+          if (this._hasExtension(fileName)) {
+            fileName = this._replaceExtension(
+              fileName,
+              resizeOption?.format?.extension
+            );
+          } else {
+            fileName += format;
+          }
+        }
 
         filesToUpsert.push({
           folderName: file.folderName,
@@ -371,15 +408,17 @@ export class GCPBucket {
 
   private async _resizeImage(
     data: Buffer,
-    { fit = 'contain', ...rest }: TResizeOptions,
+    { fit = 'contain', format, ...rest }: TResizeOptions
   ): Promise<Buffer> {
-    return await sharp(data)
-      .resize({ fit, ...rest })
-      .toBuffer();
+    const sharpItem = sharp(data).resize({ fit, ...rest });
+    if (format && format?.extension) {
+      sharpItem.toFormat(format?.extension, format?.options);
+    }
+    return await sharpItem.toBuffer();
   }
 
   private async getBufferFromData(
-    data: Blob | string | Buffer,
+    data: Blob | string | Buffer
   ): Promise<Buffer> {
     if (
       !(data instanceof Buffer) &&
@@ -387,7 +426,7 @@ export class GCPBucket {
       !(typeof data === 'string')
     ) {
       throw new Error(
-        'Invalid image format. Provide a Buffer, Base64, or Blob.',
+        'Invalid image format. Provide a Buffer, Base64, or Blob.'
       );
     }
 
