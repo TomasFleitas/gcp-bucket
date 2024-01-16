@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import { TFileContent, GCPBucket } from '../gcp';
 import firebaseApp from './firebase';
+import { FIREBASE_PROJECT } from './constants';
 
 // Initialize Express app
 const app = express();
@@ -9,12 +10,12 @@ const app = express();
 // Configure multer for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
 
+const bucketName = `${FIREBASE_PROJECT}.appspot.com`;
+
 // Initialize your GCPBucket instance
 const gcpBucket = new GCPBucket({
-  bucketName: 'fleeting-dev.appspot.com',
+  bucketName,
   firebaseApp,
-  chunkSize: 1024, // Optional chuck size to upload
-  encryptKey: "key" // Optional An AES-256 encryption key.
 });
 
 app.post('/upload', upload.single('file'), async (req, res) => {
@@ -47,6 +48,18 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             width: 200,
             fileResizePrefix: 'small-',
             fit: 'inside',
+          },
+          {
+            fileResizePrefix: 'webp-',
+            format: {
+              extension: 'webp',
+              options: {
+                lossless: true,
+                quality: 60,
+                alphaQuality: 80,
+                force: false,
+              },
+            },
           },
         ],
       },
