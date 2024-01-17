@@ -18,6 +18,8 @@ const gcpBucket = new GCPBucket({
   firebaseApp,
 });
 
+/*  Para utilizar este servicio desde Postman, enviar un POST a `http://localhost:3000/upload` con body en `form-data`. 
+Agregar un campo con key=file de tipo File y en el value cargar una imagen desde la PC. */
 app.post('/upload', upload.single('file'), async (req, res) => {
   try {
     const file = (req as any).file;
@@ -63,6 +65,27 @@ app.post('/upload', upload.single('file'), async (req, res) => {
           },
         ],
       },
+      /*       {
+        fileData: file.buffer,
+        folderName: 'profiles',
+        fileName: 'profile-1705455143710.jpeg',
+        resizeOptions: [
+          {
+            height: 200,
+            width: 200,
+            fileResizePrefix: 'thumb-',
+            fit: 'inside',
+          },
+          {
+            format: {
+              extension: 'webp',
+            },
+            fileResizePrefix: 'webp-',
+            fit: 'inside',
+          },
+        ],
+        fileMetadata: { random: 'hola' },
+      }, */
     ];
 
     // Upsert the file to GCP
