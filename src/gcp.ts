@@ -3,7 +3,25 @@ import { Bucket } from '@google-cloud/storage';
 import blobToBuffer from 'blob-to-buffer';
 import sharp, { ResizeOptions } from 'sharp';
 
-type FormatGenericType<F, O> = { extension: F; options?: O };
+type FormatGenericType<F, O> = {
+  extension: F;
+  options?: O;
+  /** Indica si agrega la extensión al archivo que se está formateando. Es decir, si se está convirtiendo a formato png, agregará la extensión ".png" al final del archivo.
+   * Esta bandera por defecto está en `false`.
+   *
+   * Nota: se debe tener en cuenta que esto sólo aplica cuando el `filename` provisto no tiene una extensión. Ya que en caso de tener extensión, esta siempre será reemplazada por la extensión del nuevo formato.
+   *
+   * @example
+   * ```
+   * |           | filename       | format to | addExtension | result          |
+   * |-----------|----------------|-----------|--------------|-----------------|
+   * | Ejemplo 1 | una-imagen     | webp      | false        | una-imagen      |
+   * | Ejemplo 2 | una-imagen.png | webp      | true/false   | una-imagen.webp |
+   * | Ejemplo 3 | una-imagen     | webp      | true         | una-imagen.webp |
+   * ```
+   */
+  addExtension?: boolean;
+};
 
 type FormatType =
   | FormatGenericType<'webp', sharp.WebpOptions>
@@ -360,19 +378,21 @@ export class GCPBucket {
         fileData: buffer,
       });
       for (const resizeOption of file.resizeOptions) {
-        const format = resizeOption?.format?.extension;
+        const extension = resizeOption?.format?.extension;
         let fileName =
           resizeOption.fileResizePrefix +
           (resizeOption.fileName || file.fileName);
 
-        if (format) {
+        if (extension) {
           if (this._hasExtension(fileName)) {
             fileName = this._replaceExtension(
               fileName,
               resizeOption?.format?.extension
             );
           } else {
-            fileName += format;
+            if (resizeOption?.format?.addExtension) {
+              fileName += `.${extension}`;
+            }
           }
         }
 
