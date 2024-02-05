@@ -2,6 +2,7 @@ import * as Admin from 'firebase-admin';
 import { Bucket } from '@google-cloud/storage';
 import blobToBuffer from 'blob-to-buffer';
 import sharp, { ResizeOptions } from 'sharp';
+import { CreateWriteStreamOptions } from '@google-cloud/storage/build/src/file';
 
 type FormatGenericType<F, O> = {
   extension: F;
@@ -47,6 +48,7 @@ export type TConstructor = {
   firebaseApp: Admin.app.App;
   encryptKey?: string;
   chunkSize?: number;
+  writeStreamOptions?: CreateWriteStreamOptions;
 };
 
 export type TResizeOpts = TResizeOptions & {
@@ -79,12 +81,17 @@ export class GCPBucket {
   private BUCKET!: Bucket;
   private ENCRYPT_KEY?: string;
   private CHUNK_SIZE = 1024;
+  private WRITE_STREAM_OPTIONS: CreateWriteStreamOptions = {
+    resumable: false,
+    timeout: 10000,
+  };
 
   constructor({
     bucketName,
     firebaseApp,
     encryptKey,
     chunkSize,
+    writeStreamOptions,
   }: TConstructor) {
     if (!bucketName) {
       throw new Error('bucketName is required');
@@ -95,6 +102,7 @@ export class GCPBucket {
     this.STORAGE = firebaseApp.storage();
     this.ENCRYPT_KEY = encryptKey;
     this.CHUNK_SIZE = chunkSize ?? this.CHUNK_SIZE;
+    this.WRITE_STREAM_OPTIONS = writeStreamOptions;
     this._initFileStorage(bucketName);
   }
 
@@ -296,10 +304,9 @@ export class GCPBucket {
         file.setEncryptionKey(Buffer.from(this.ENCRYPT_KEY));
 
       const writeStream = file.createWriteStream({
-        resumable: false,
-
-        timeout: 5000,
+        ...(this.WRITE_STREAM_OPTIONS ?? {}),
         metadata: {
+          ...(this.WRITE_STREAM_OPTIONS?.metadata ?? {}),
           ...metadata,
         },
       });
